@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Race Predictor &amp; Training Paces — Free Running Calculator</title>
+<meta name="description" content="Enter one recent race result and instantly get predicted times for 5K, 10K, half & full marathon, plus your Easy, Marathon, Threshold, Interval and Repetition training paces. Free, no signup, works offline.">
+<style>
+  :root{
+    --bg:#0b1120; --panel:#111a2e; --panel2:#0f1728; --line:#1e2b45;
+    --ink:#e8eefc; --muted:#8ba0c4; --accent:#3ddc97; --accent2:#4c8dff;
+    --warn:#ffb020;
+    --easy:#3ddc97; --mara:#4c8dff; --thr:#ffb020; --intv:#ff7a59; --rep:#c56bff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:radial-gradient(1200px 600px at 80% -10%, #16233f 0%, var(--bg) 60%);
+    color:var(--ink);
+    font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    min-height:100vh; padding:32px 16px 64px;
+  }
+  .wrap{max-width:860px;margin:0 auto}
+  header{margin-bottom:24px}
+  h1{font-size:clamp(24px,4vw,34px);margin:0 0 6px;letter-spacing:-.02em}
+  .sub{color:var(--muted);margin:0;max-width:56ch}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px;margin-top:20px}
+  .grid{display:grid;gap:14px;grid-template-columns:1fr 1fr}
+  @media (max-width:560px){.grid{grid-template-columns:1fr}}
+  label{display:block;font-size:13px;color:var(--muted);margin:0 0 6px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+  select,input{
+    width:100%;padding:12px 14px;background:var(--panel2);border:1px solid var(--line);
+    color:var(--ink);border-radius:10px;font-size:16px;outline:none
+  }
+  select:focus,input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(76,141,255,.18)}
+  .time-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .hint{color:var(--muted);font-size:12px;margin:6px 0 0}
+  .results{margin-top:22px;display:none}
+  .results.show{display:block}
+  h2{font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:26px 0 12px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line)}
+  th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600}
+  td.val{font-variant-numeric:tabular-nums;font-weight:700;font-size:18px;text-align:right}
+  td.pace{color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:9px;vertical-align:middle}
+  .zone-name{font-weight:700}
+  .zone-desc{color:var(--muted);font-size:13px}
+  .vdot{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:999px;
+    padding:6px 14px;font-weight:700;color:var(--accent)}
+  .err{color:var(--warn);font-size:14px;margin-top:12px;min-height:18px}
+  footer{color:var(--muted);font-size:12px;margin-top:28px;line-height:1.6}
+  footer a{color:var(--accent2)}
+  .toggle{display:inline-flex;gap:0;background:var(--panel2);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .toggle button{background:transparent;border:0;color:var(--muted);padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer}
+  .toggle button.on{background:var(--accent2);color:#fff}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Race Predictor &amp; Training Paces</h1>
+    <p class="sub">One recent race is all it takes. Get equivalent finish times across distances and the exact paces to train at — using Jack Daniels' VDOT model, the same sports-science math coaches use.</p>
+  </header>
+
+  <div class="card">
+    <div class="grid">
+      <div>
+        <label for="dist">Recent race distance</label>
+        <select id="dist">
+          <option value="1500">1500 m</option>
+          <option value="1609.34">1 mile</option>
+          <option value="3000">3 km</option>
+          <option value="5000" selected>5 km</option>
+          <option value="10000">10 km</option>
+          <option value="15000">15 km</option>
+          <option value="21097.5">Half marathon</option>
+          <option value="42195">Marathon</option>
+        </select>
+      </div>
+      <div>
+        <label>Finish time (hh : mm : ss)</label>
+        <div class="time-row">
+          <input id="h" inputmode="numeric" placeholder="hh" aria-label="hours">
+          <input id="m" inputmode="numeric" placeholder="mm" aria-label="minutes" value="22">
+          <input id="s" inputmode="numeric" placeholder="ss" aria-label="seconds" value="30">
+        </div>
+      </div>
+    </div>
+    <p class="hint">Use a hard, recent effort for the most accurate result. Example: a 22:30 parkrun 5K.</p>
+    <div class="err" id="err" role="alert"></div>
+  </div>
+
+  <div class="results" id="results">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:6px">
+      <div>Estimated fitness: <span class="vdot" id="vdot">VDOT —</span></div>
+      <div class="toggle" role="group" aria-label="pace units">
+        <button id="unitKm" class="on" type="button">min / km</button>
+        <button id="unitMi" type="button">min / mile</button>
+      </div>
+    </div>
+
+    <h2>Predicted race times</h2>
+    <table>
+      <thead><tr><th>Distance</th><th style="text-align:right">Time</th><th style="text-align:right">Pace</th></tr></thead>
+      <tbody id="predBody"></tbody>
+    </table>
+
+    <h2>Your training paces</h2>
+    <table>
+      <thead><tr><th>Zone</th><th style="text-align:right">Pace</th></tr></thead>
+      <tbody id="paceBody"></tbody>
+    </table>
+  </div>
+
+  <footer>
+    <p>Predictions use Pete Riegel's endurance model (fatigue exponent 1.06). Training paces are derived from your VDOT via Jack Daniels' oxygen-cost equations. Estimates only — listen to your body, and progress gradually.</p>
+    <p>Built as a free, no-signup, offline-capable tool. Save this page and it keeps working with no internet. <a href="https://github.com/pankajjpandeywork/racepace-calculator" id="src">View source</a>.</p>
+  </footer>
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const el = {dist:$('dist'),h:$('h'),m:$('m'),s:$('s'),err:$('err'),
+    results:$('results'),vdot:$('vdot'),predBody:$('predBody'),paceBody:$('paceBody'),
+    unitKm:$('unitKm'),unitMi:$('unitMi')};
+  let useMiles = false;
+
+  // ---- Core sports-science math ---------------------------------------
+  // Daniels' VDOT from a race: velocity in m/min, time in minutes.
+  function vdotFromRace(meters, minutes){
+    const v = meters / minutes;                                   // m/min
+    const pctMax = 0.8 + 0.1894393*Math.exp(-0.012778*minutes)
+                       + 0.2989558*Math.exp(-0.1932605*minutes);
+    const vo2 = -4.60 + 0.182258*v + 0.000104*v*v;                // ml/kg/min
+    return vo2 / pctMax;
+  }
+  // Invert the oxygen-cost curve: velocity (m/min) that costs a given VO2.
+  function velFromVo2(vo2){
+    const a=0.000104, b=0.182258, c=-4.60 - vo2;
+    return (-b + Math.sqrt(b*b - 4*a*c)) / (2*a);
+  }
+  // Riegel: predict time (min) for d2 from a known race (d1 metres, t1 min).
+  function riegel(t1, d1, d2){ return t1 * Math.pow(d2/d1, 1.06); }
+
+  // ---- Formatting ------------------------------------------------------
+  function fmtTime(min){
+    let s = Math.round(min*60);
+    const hh = Math.floor(s/3600); s -= hh*3600;
+    const mm = Math.floor(s/60);   s -= mm*60;
+    const pad = n => String(n).padStart(2,'0');
+    return hh>0 ? `${hh}:${pad(mm)}:${pad(s)}` : `${mm}:${pad(s)}`;
+  }
+  // pace: minutes per metre-basis -> min per km or mile, as m:ss
+  function fmtPace(minPerKm){
+    const per = useMiles ? minPerKm*1.609344 : minPerKm;
+    let s = Math.round(per*60);
+    const mm = Math.floor(s/60); s -= mm*60;
+    return `${mm}:${String(s).padStart(2,'0')} /${useMiles?'mi':'km'}`;
+  }
+
+  const PREDICT = [
+    ['5 km',5000],['10 km',10000],['Half marathon',21097.5],['Marathon',42195]
+  ];
+  // Daniels training intensities as a fraction of VDOT (%VO2max used).
+  const ZONES = [
+    ['Easy',      0.70, 'var(--easy)', 'Aerobic base & recovery runs'],
+    ['Marathon',  0.84, 'var(--mara)', 'Goal marathon effort'],
+    ['Threshold', 0.88, 'var(--thr)',  'Comfortably hard / tempo, ~1hr race effort'],
+    ['Interval',  0.98, 'var(--intv)', '3–5 min reps at ~VO2max'],
+    ['Repetition',1.05, 'var(--rep)',  'Short, fast reps for speed & economy']
+  ];
+
+  function paceForIntensity(vdot, frac){
+    const v = velFromVo2(vdot*frac);   // m/min
+    return 1000 / v;                   // min per km
+  }
+
+  function compute(){
+    const meters = parseFloat(el.dist.value);
+    const h = parseInt(el.h.value||'0',10)||0;
+    const m = parseInt(el.m.value||'0',10)||0;
+    const s = parseInt(el.s.value||'0',10)||0;
+    const minutes = h*60 + m + s/60;
+
+    if(!(minutes>0)){ el.err.textContent='Enter a finish time to see results.'; el.results.classList.remove('show'); return; }
+    // sanity guard: absurdly fast paces
+    if(meters/minutes > 600){ el.err.textContent='That pace looks impossibly fast — check the time.'; el.results.classList.remove('show'); return; }
+    el.err.textContent='';
+
+    const vdot = vdotFromRace(meters, minutes);
+    el.vdot.textContent = 'VDOT ' + vdot.toFixed(1);
+
+    el.predBody.innerHTML = PREDICT.map(([name,d])=>{
+      const t = (Math.abs(d-meters)<1) ? minutes : riegel(minutes, meters, d);
+      const paceKm = t / (d/1000);
+      return `<tr><td>${name}</td><td class="val">${fmtTime(t)}</td><td class="pace">${fmtPace(paceKm)}</td></tr>`;
+    }).join('');
+
+    el.paceBody.innerHTML = ZONES.map(([name,frac,color,desc])=>{
+      const p = paceForIntensity(vdot, frac);
+      return `<tr>
+        <td><span class="dot" style="background:${color}"></span>
+            <span class="zone-name">${name}</span><br>
+            <span class="zone-desc" style="margin-left:18px">${desc}</span></td>
+        <td class="val">${fmtPace(p)}</td></tr>`;
+    }).join('');
+
+    el.results.classList.add('show');
+  }
+
+  ['dist','h','m','s'].forEach(id=>el[id].addEventListener('input',compute));
+  el.unitKm.addEventListener('click',()=>{useMiles=false;el.unitKm.classList.add('on');el.unitMi.classList.remove('on');compute();});
+  el.unitMi.addEventListener('click',()=>{useMiles=true;el.unitMi.classList.add('on');el.unitKm.classList.remove('on');compute();});
+
+  compute(); // run once with the default 5K 22:30
+})();
+</script>
+</body>
+</html>
